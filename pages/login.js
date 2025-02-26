@@ -5,20 +5,22 @@ import { useRouter } from 'next/router';
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const handleLogin = async (type) => {
     try {
+      setLoading(true);
       let result;
       
       if (type === 'LOGIN') {
-        // Novo método na API v2
+        // Método correto para a API v2
         result = await supabase.auth.signInWithPassword({
           email,
           password,
         });
       } else {
-        // Novo método na API v2
+        // Método correto para a API v2
         result = await supabase.auth.signUp({
           email,
           password,
@@ -30,9 +32,16 @@ export default function Login() {
       if (error) throw error;
       
       alert(type === 'LOGIN' ? 'Logado com sucesso!' : 'Cadastrado com sucesso!');
-      router.push('/');
+      
+      // Se for login, redireciona para a página principal
+      if (type === 'LOGIN') {
+        router.push('/');
+      }
     } catch (error) {
+      console.error('Erro de autenticação:', error);
       alert(error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -57,15 +66,17 @@ export default function Login() {
         <div className="flex space-x-2">
           <button 
             onClick={() => handleLogin('LOGIN')}
-            className="bg-blue-500 text-white px-4 py-2 rounded"
+            disabled={loading}
+            className="bg-blue-500 text-white px-4 py-2 rounded disabled:bg-blue-300"
           >
-            Login
+            {loading ? 'Processando...' : 'Login'}
           </button>
           <button 
             onClick={() => handleLogin('SIGNUP')}
-            className="bg-green-500 text-white px-4 py-2 rounded"
+            disabled={loading}
+            className="bg-green-500 text-white px-4 py-2 rounded disabled:bg-green-300"
           >
-            Cadastrar
+            {loading ? 'Processando...' : 'Cadastrar'}
           </button>
         </div>
       </div>
