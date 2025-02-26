@@ -9,6 +9,8 @@ import useTransactions from '../hooks/useTransactions';
 
 export default function Home() {
   const { user, loading: authLoading, handleLogout } = useAuth();
+  const transactionsData = useTransactions(user?.id); // ✅ Sempre chama o hook
+
   const { 
     transactions,
     totals,
@@ -17,7 +19,7 @@ export default function Home() {
     setFilterMonth,
     setFilterYear,
     addTransaction
-  } = user ? useTransactions(user.id) : {};
+  } = transactionsData || {}; // Se `useTransactions` for `undefined`, usa um objeto vazio
 
   const handleAddTransaction = async (transactionData) => {
     if (!user) return { success: false };
