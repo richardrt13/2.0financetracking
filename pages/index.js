@@ -8,39 +8,55 @@ export default function Home() {
   const [description, setDescription] = useState('');
   const [type, setType] = useState('income');
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    // Verificar se o usuário está logado
-    const user = supabase.auth.user();
-    if (!user) {
-      router.push('/login');
-    } else {
-      setUser(user);
-      fetchTransactions();
-    }
+    const checkUser = async () => {
+      try {
+        // Usar getSession em vez de user()
+        const { data } = await supabase.auth.getSession();
+        
+        if (!data.session) {
+          router.push('/login');
+          return;
+        }
+        
+        setUser(data.session.user);
+        fetchTransactions(data.session.user.id);
+      } catch (error) {
+        console.error('Erro ao verificar autenticação:', error);
+        router.push('/login');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkUser();
 
     // Configurar listener para mudanças de autenticação
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') {
-        setUser(session.user);
-        fetchTransactions();
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        router.push('/login');
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN') {
+          setUser(session.user);
+          fetchTransactions(session.user.id);
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+          router.push('/login');
+        }
       }
-    });
+    );
 
     return () => {
-      authListener?.unsubscribe();
+      authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = async (userId) => {
     const { data, error } = await supabase
       .from('transactions')
       .select('*')
-      .eq('user_id', supabase.auth.user()?.id);
+      .eq('user_id', userId);
 
     if (error) console.error(error);
     else setTransactions(data || []);
@@ -55,7 +71,7 @@ export default function Home() {
     const { data, error } = await supabase
       .from('transactions')
       .insert([{ 
-        user_id: supabase.auth.user()?.id, 
+        user_id: user.id, 
         amount: parseFloat(amount), 
         description, 
         type 
@@ -65,13 +81,17 @@ export default function Home() {
     else {
       setAmount('');
       setDescription('');
-      fetchTransactions();
+      fetchTransactions(user.id);
     }
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
+
+  if (loading) {
+    return <div className="p-4">Carregando...</div>;
+  }
 
   // Se não houver usuário, não renderiza o conteúdo
   if (!user) return null;
