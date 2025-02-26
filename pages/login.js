@@ -9,14 +9,28 @@ export default function Login() {
 
   const handleLogin = async (type) => {
     try {
-      const { user, error } = type === 'LOGIN'
-        ? await supabase.auth.signIn({ email, password })
-        : await supabase.auth.signUp({ email, password });
+      let result;
+      
+      if (type === 'LOGIN') {
+        // Novo método na API v2
+        result = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+      } else {
+        // Novo método na API v2
+        result = await supabase.auth.signUp({
+          email,
+          password,
+        });
+      }
+
+      const { data, error } = result;
 
       if (error) throw error;
       
       alert(type === 'LOGIN' ? 'Logado com sucesso!' : 'Cadastrado com sucesso!');
-      router.push('/'); // Redireciona para a página principal após login
+      router.push('/');
     } catch (error) {
       alert(error.message);
     }
