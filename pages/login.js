@@ -14,32 +14,70 @@ export default function Login() {
       let result;
       
       if (type === 'LOGIN') {
-        // Método correto para a API v2
+        // Login normal
         result = await supabase.auth.signInWithPassword({
           email,
           password,
         });
       } else {
-        // Método correto para a API v2
+        // Registro com autoConfirm
         result = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            data: {
+              email_confirmed: true
+            }
+          }
         });
+        
+        // Se o registro foi bem-sucedido, tentamos fazer login imediatamente
+        if (!result.error && result.data.user) {
+          // Aguarde um momento para o banco processar
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Faça login automaticamente
+          const loginResult = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          
+          if (loginResult.error) {
+            throw loginResult.error;
+          }
+          
+          result = loginResult;
+        }
       }
 
       const { data, error } = result;
 
       if (error) throw error;
       
-      alert(type === 'LOGIN' ? 'Logado com sucesso!' : 'Cadastrado com sucesso!');
-      
-      // Se for login, redireciona para a página principal
-      if (type === 'LOGIN') {
+      if (type === 'SIGNUP') {
+        if (data.user && data.user.identities && data.user.identities.length === 0) {
+          alert('Este email já está registrado. Por favor, faça login.');
+        } else if (data.user && !data.session) {
+          alert('Cadastro realizado! Por favor, verifique seu email para confirmar o registro.');
+        } else {
+          alert('Cadastro e login realizados com sucesso!');
+          router.push('/');
+        }
+      } else {
+        alert('Login realizado com sucesso!');
         router.push('/');
       }
     } catch (error) {
       console.error('Erro de autenticação:', error);
-      alert(error.message);
+      
+      // Mensagens de erro mais amigáveis
+      if (error.message.includes('Invalid login')) {
+        alert('Email ou senha incorretos');
+      } else if (error.message.includes('Email not confirmed')) {
+        alert('Por favor, confirme seu email antes de fazer login');
+      } else {
+        alert(error.message);
+      }
     } finally {
       setLoading(false);
     }
