@@ -1,11 +1,40 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { useRouter } from 'next/router';
 
 export default function Home() {
   const [transactions, setTransactions] = useState([]);
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState('income');
+  const [user, setUser] = useState(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    // Verificar se o usuário está logado
+    const user = supabase.auth.user();
+    if (!user) {
+      router.push('/login');
+    } else {
+      setUser(user);
+      fetchTransactions();
+    }
+
+    // Configurar listener para mudanças de autenticação
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN') {
+        setUser(session.user);
+        fetchTransactions();
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        router.push('/login');
+      }
+    });
+
+    return () => {
+      authListener?.unsubscribe();
+    };
+  }, []);
 
   const fetchTransactions = async () => {
     const { data, error } = await supabase
@@ -14,13 +43,23 @@ export default function Home() {
       .eq('user_id', supabase.auth.user()?.id);
 
     if (error) console.error(error);
-    else setTransactions(data);
+    else setTransactions(data || []);
   };
 
   const addTransaction = async () => {
+    if (!amount || !description) {
+      alert('Por favor, preencha todos os campos');
+      return;
+    }
+
     const { data, error } = await supabase
       .from('transactions')
-      .insert([{ user_id: supabase.auth.user()?.id, amount, description, type }]);
+      .insert([{ 
+        user_id: supabase.auth.user()?.id, 
+        amount: parseFloat(amount), 
+        description, 
+        type 
+      }]);
 
     if (error) console.error(error);
     else {
@@ -30,28 +69,77 @@ export default function Home() {
     }
   };
 
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  // Se não houver usuário, não renderiza o conteúdo
+  if (!user) return null;
 
   return (
-    <div>
-      <h1>Minhas Transações</h1>
-      <input type="number" placeholder="Valor" value={amount} onChange={(e) => setAmount(e.target.value)} />
-      <input type="text" placeholder="Descrição" value={description} onChange={(e) => setDescription(e.target.value)} />
-      <select value={type} onChange={(e) => setType(e.target.value)}>
-        <option value="income">Receita</option>
-        <option value="expense">Despesa</option>
-      </select>
-      <button onClick={addTransaction}>Adicionar</button>
+    <div className="container mx-auto p-4">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Minhas Transações</h1>
+        <button 
+          onClick={handleLogout}
+          className="bg-red-500 text-white px-4 py-2 rounded"
+        >
+          Sair
+        </button>
+      </div>
 
-      <ul>
-        {transactions.map((transaction) => (
-          <li key={transaction.id}>
-            {transaction.type === 'income' ? '+' : '-'} {transaction.amount} - {transaction.description}
-          </li>
-        ))}
-      </ul>
+      <div className="bg-white p-4 rounded shadow mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <input 
+            type="number" 
+            placeholder="Valor" 
+            value={amount} 
+            onChange={(e) => setAmount(e.target.value)} 
+            className="p-2 border rounded"
+          />
+          <input 
+            type="text" 
+            placeholder="Descrição" 
+            value={description} 
+            onChange={(e) => setDescription(e.target.value)} 
+            className="p-2 border rounded"
+          />
+          <select 
+            value={type} 
+            onChange={(e) => setType(e.target.value)}
+            className="p-2 border rounded"
+          >
+            <option value="income">Receita</option>
+            <option value="expense">Despesa</option>
+          </select>
+          <button 
+            onClick={addTransaction}
+            className="bg-blue-500 text-white p-2 rounded"
+          >
+            Adicionar
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white p-4 rounded shadow">
+        <h2 className="text-xl font-semibold mb-4">Histórico</h2>
+        {transactions.length === 0 ? (
+          <p>Nenhuma transação registrada.</p>
+        ) : (
+          <ul className="divide-y">
+            {transactions.map((transaction) => (
+              <li key={transaction.id} className="py-3">
+                <div className="flex justify-between">
+                  <span className="font-medium">{transaction.description}</span>
+                  <span className={transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}>
+                    {transaction.type === 'income' ? '+' : '-'} R$ {transaction.amount.toFixed(2)}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
